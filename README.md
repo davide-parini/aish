@@ -44,67 +44,52 @@ The install script will:
 
 ## Usage
 
-### Basic Usage
-
 ```bash
 aish <your goal in natural language>
-```
-
-**Examples:**
-
-```bash
-aish find files larger than 100MB
-aish update homebrew and all packages
-aish list all running docker containers
-aish compress all PDFs in this folder
-aish show my IP address
 ```
 
 ### Interactive Mode
 
 After generating a command, simply press a key to choose your action:
 
-- **[Enter]** - Execute the command immediately 🚀
+- **[⏎]** - Execute the command immediately 🚀
 - **[1]** - Copy to clipboard and exit 📋
 - **[2]** - Refine the command with additional instructions ✨
 - **[3]** - Explain the command in detail 💡
+- **[q]** - Exit without action 👋
 
-**Example Output:**
+**Example Session:**
 
 ```
 🧠 Thinking...find . -type f -size +100M
-[Enter] Execute 🚀
+[⏎] Execute 🚀
 [1] Copy 📋
 [2] Refine ✨
 [3] Explain 💡
+[q] Exit 👋
 ```
 
-**Refinement Example:**
+**Refinement:**
 
-After pressing **[2]**:
+Press **[2]** to refine the command:
 
 ```
 ✨ Refinement prompt: only show files modified in the last week
 ```
 
-The AI will combine your refinement with the previous command, maintaining context across iterations.
+The AI combines your refinement with the previous command, maintaining context across iterations.
 
-**Explanation Example:**
+**Explanation:**
 
-After pressing **[3]**:
+Press **[3]** for a detailed breakdown:
 
 ```
 💡 Explanation:
-find . -type f -size +100M
-
-This command searches for files larger than 100 megabytes:
-- find: Unix utility to search for files
-- .: Start from current directory
-- -type f: Only match files (not directories)
-- -size +100M: Files larger than 100 megabytes
+This command searches for files larger than 100 megabytes.
+The find utility starts from the current directory (.)...
 ```
 
-The explanation is generated in a separate session and won't affect your refinement context.
+Explanations are generated in a separate session and won't affect refinement context.
 
 ## Configuration
 
