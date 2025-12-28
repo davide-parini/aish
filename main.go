@@ -1,40 +1,36 @@
 package main
 
 import (
+	"aish/providers"
 	"bufio"
-	"bytes"
-	"encoding/json"
+	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"gopkg.in/yaml.v3"
 )
 
 // --- Configuration ---
 type Config struct {
-	OllamaURL    string `json:"ollama_url"`
-	Model        string `json:"model"`
-	SystemPrompt string `json:"system_prompt"`
+	DefaultProvider string       `yaml:"default_provider"`
+	SystemPrompt    string       `yaml:"system_prompt"`
+	Ollama          OllamaConfig `yaml:"ollama"`
+	Gemini          GeminiConfig `yaml:"gemini"`
 }
 
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+type OllamaConfig struct {
+	URL   string `yaml:"url"`
+	Model string `yaml:"model"`
 }
 
-type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
-}
-
-type ChatResponse struct {
-	Message Message `json:"message"`
+type GeminiConfig struct {
+	APIKey string `yaml:"api_key"`
+	Model  string `yaml:"model"`
 }
 
 // --- Prompt Engineering ---
@@ -68,27 +64,66 @@ Assistant: find . -type f -newermt 2025-03-01 ! -newermt 2025-04-01 -size +100M
 NOW, generate the command for the following request.`
 
 func main() {
-	// 1. Load or Create Config
+	// Parse command-line flags
+	providerFlag := flag.String("p", "", "LLM provider to use (ollama or gemini)")
+	flag.StringVar(providerFlag, "provider", "", "LLM provider to use (ollama or gemini)")
+	setDefaultProvider := flag.String("set-default-provider", "", "Set the default provider in config (ollama or gemini)")
+	flag.Parse()
+
+	// Load config
 	config := loadConfig()
 
-	// 2. Get Goal
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: aish <your goal>")
+	// Handle --set-default-provider
+	if *setDefaultProvider != "" {
+		if *setDefaultProvider != "ollama" && *setDefaultProvider != "gemini" {
+			fmt.Printf("❌ Invalid provider: %s (must be 'ollama' or 'gemini')\n", *setDefaultProvider)
+			os.Exit(1)
+		}
+		if err := setDefaultProviderInConfig(*setDefaultProvider); err != nil {
+			fmt.Printf("❌ Failed to update config: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Default provider set to: %s\n", *setDefaultProvider)
+		os.Exit(0)
+	}
+
+	// Determine which provider to use
+	activeProvider := config.DefaultProvider
+	if *providerFlag != "" {
+		activeProvider = *providerFlag
+	}
+
+	// Validate provider
+	if activeProvider != "ollama" && activeProvider != "gemini" {
+		fmt.Printf("❌ Invalid provider: %s (must be 'ollama' or 'gemini')\n", activeProvider)
 		os.Exit(1)
 	}
-	initialGoal := strings.Join(os.Args[1:], " ")
 
-	messages := []Message{
-		{Role: "system", Content: config.SystemPrompt},
-		{Role: "user", Content: initialGoal},
+	// Create provider instance
+	provider := createProvider(config, activeProvider)
+	if provider == nil {
+		os.Exit(1)
 	}
 
-	client := &http.Client{}
+	// Get goal from remaining args
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Println("Usage: aish [flags] <your goal>")
+		fmt.Println("\nFlags:")
+		fmt.Println("  -p, --provider <name>           Use specific provider for this command (ollama or gemini)")
+		fmt.Println("  --set-default-provider <name>   Set default provider in config")
+		os.Exit(1)
+	}
+	initialGoal := strings.Join(args, " ")
+
+	messages := []providers.Message{
+		{Role: "user", Content: initialGoal},
+	}
 
 	// 3. The Loop
 	for {
 		fmt.Print("🧠 Thinking...")
-		cmdStr, err := queryOllama(client, config, messages)
+		cmdStr, err := provider.SendMessage(messages, config.SystemPrompt)
 		if err != nil {
 			fmt.Printf("\r\033[K❌ Error: %v\n", err)
 			os.Exit(1)
@@ -123,13 +158,13 @@ func main() {
 			case '2': // Refine
 				fmt.Print("✨ Refinement prompt: ")
 				refinement := readLine()
-				messages = append(messages, Message{Role: "assistant", Content: cmdStr})
-				messages = append(messages, Message{Role: "user", Content: refinement})
+				messages = append(messages, providers.Message{Role: "assistant", Content: cmdStr})
+				messages = append(messages, providers.Message{Role: "user", Content: refinement})
 				break innerLoop // Break inner loop to regenerate command
 
 			case '3': // Explain
 				fmt.Print("🧠 Thinking...")
-				explanation, err := explainCommand(client, config, cmdStr)
+				explanation, err := explainCommand(provider, config, cmdStr)
 				fmt.Print("\r\033[K") // Clear "Thinking..."
 				if err != nil {
 					fmt.Printf("❌ Error: %v\n", err)
@@ -190,9 +225,16 @@ func readLine() string {
 func loadConfig() Config {
 	// 1. Define Defaults
 	cfg := Config{
-		OllamaURL:    "http://localhost:11434",
-		Model:        "llama3.2:3b",
-		SystemPrompt: advancedSystemPrompt,
+		DefaultProvider: "ollama",
+		SystemPrompt:    advancedSystemPrompt,
+		Ollama: OllamaConfig{
+			URL:   "http://localhost:11434",
+			Model: "llama3.2:3b",
+		},
+		Gemini: GeminiConfig{
+			APIKey: "",
+			Model:  "gemini-flash-lite-latest",
+		},
 	}
 
 	// 2. Resolve Path
@@ -201,7 +243,7 @@ func loadConfig() Config {
 		return cfg // Fallback to defaults if home dir fails
 	}
 	dirPath := filepath.Join(home, ".config", "aish")
-	filePath := filepath.Join(dirPath, "config.json")
+	filePath := filepath.Join(dirPath, "config.yaml")
 
 	// 3. Create Config if it doesn't exist
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
@@ -209,7 +251,7 @@ func loadConfig() Config {
 		os.MkdirAll(dirPath, 0755)
 
 		// Write defaults to file
-		data, _ := json.MarshalIndent(cfg, "", "  ")
+		data, _ := yaml.Marshal(cfg)
 		os.WriteFile(filePath, data, 0644)
 
 		fmt.Printf("⚙️  Created new config at %s\n", filePath)
@@ -217,45 +259,62 @@ func loadConfig() Config {
 		// 4. Load existing config
 		data, err := os.ReadFile(filePath)
 		if err == nil {
-			json.Unmarshal(data, &cfg)
+			yaml.Unmarshal(data, &cfg)
 		}
 	}
 
 	return cfg
 }
 
-func queryOllama(client *http.Client, cfg Config, msgs []Message) (string, error) {
-	reqBody := ChatRequest{
-		Model:    cfg.Model,
-		Messages: msgs,
-		Stream:   false,
+func createProvider(config Config, providerName string) providers.Provider {
+	switch providerName {
+	case "ollama":
+		return providers.NewOllamaProvider(config.Ollama.URL, config.Ollama.Model)
+	case "gemini":
+		return providers.NewGeminiProvider(config.Gemini.APIKey, config.Gemini.Model)
+	default:
+		fmt.Printf("❌ Unknown provider: %s\n", providerName)
+		return nil
 	}
-
-	jsonData, _ := json.Marshal(reqBody)
-	resp, err := client.Post(cfg.OllamaURL+"/api/chat", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API Status: %d", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var chatResp ChatResponse
-	json.Unmarshal(body, &chatResp)
-
-	return strings.TrimSpace(chatResp.Message.Content), nil
 }
 
-func explainCommand(client *http.Client, cfg Config, cmd string) (string, error) {
+func setDefaultProviderInConfig(provider string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	filePath := filepath.Join(home, ".config", "aish", "config.yaml")
+
+	// Read existing config
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+
+	// Update default provider
+	cfg.DefaultProvider = provider
+
+	// Write back
+	data, err = yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filePath, data, 0644)
+}
+
+func explainCommand(provider providers.Provider, cfg Config, cmd string) (string, error) {
 	// Create a separate, temporary chat session for explanation
 	explainPrompt := fmt.Sprintf("Explain this shell command in detail, breaking down each part, flag, and parameter:\n\n%s\n\nProvide a clear, educational explanation in plain text. Do NOT use markdown formatting, code blocks, or special symbols. Just plain text.", cmd)
 
-	tempMessages := []Message{
+	tempMessages := []providers.Message{
 		{Role: "user", Content: explainPrompt},
 	}
 
-	return queryOllama(client, cfg, tempMessages)
+	return provider.SendMessage(tempMessages, cfg.SystemPrompt)
 }

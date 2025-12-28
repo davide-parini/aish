@@ -1,6 +1,6 @@
 # aish - AI Shell Helper
 
-A fast, terminal-based tool that converts natural language descriptions into executable shell commands using local LLMs via Ollama.
+A fast, terminal-based tool that converts natural language descriptions into executable shell commands using LLMs.
 
 ## Purpose
 
@@ -8,7 +8,7 @@ aish eliminates the need to remember complex shell syntax by letting you describ
 
 **Key Features:**
 - ⚡ **Instant startup** - Built in Go for zero-latency execution
-- 🔒 **Fully local** - Runs entirely on your machine via Ollama
+- 🔌 **Multiple providers** - Use local Ollama or Google Gemini
 - 🎯 **macOS optimized** - Designed for Zsh on macOS
 - 🔄 **Iterative refinement** - Chat with the AI to adjust commands
 - 📋 **Clipboard integration** - Copy commands with one keystroke
@@ -16,17 +16,22 @@ aish eliminates the need to remember complex shell syntax by letting you describ
 
 ## Prerequisites
 
+**For Ollama (local):**
 - macOS running Zsh
 - [Ollama](https://ollama.ai) installed and running
-- The `llama3.2:3b` model (or customize in config)
+- The `llama3.2:3b` model
 
 ```bash
-# Install Ollama (if not already installed)
+# Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
 
 # Pull the default model
 ollama pull llama3.2:3b
 ```
+
+**For Gemini:**
+- macOS running Zsh
+- Google AI API key ([get one here](https://aistudio.google.com/app/apikey))
 
 ## Installation
 
@@ -39,13 +44,23 @@ cd aish
 The install script will:
 - Build the binary
 - Install to `~/.local/bin` (no sudo required)
-- Delete any existing config for a fresh start
+- Prompt for default LLM provider (ollama or gemini)
+- Optionally collect Gemini API key
+- Generate YAML config at `~/.config/aish/config.yaml`
 - Remind you to add `~/.local/bin` to PATH if needed
 
 ## Usage
 
 ```bash
+# Basic usage
 aish <your goal in natural language>
+
+# Use specific provider for one command
+aish -p gemini find large files
+aish --provider ollama compress videos
+
+# Change default provider
+aish --set-default-provider gemini
 ```
 
 ### Interactive Mode
@@ -83,30 +98,35 @@ The AI combines your refinement with the previous command, maintaining context a
 
 Press **[3]** for a detailed breakdown:
 
-```
-💡 Explanation:
-This command searches for files larger than 100 megabytes.
-The find utility starts from the current directory (.)...
-```
-
-Explanations are generated in a separate session and won't affect refinement context.
-
 ## Configuration
 
-On first run, aish creates `~/.config/aish/config.json` with default settings:
+Configuration is stored at `~/.config/aish/config.yaml`:
 
-```json
-{
-  "ollama_url": "http://localhost:11434",
-  "model": "llama3.2:3b",
-  "system_prompt": "..."
-}
+```yaml
+default_provider: ollama
+system_prompt: |
+  You are a highly skilled macOS Zsh Command Generator.
+  Your specific goal is to output raw, executable Zsh commands.
+  ...
+
+ollama:
+  url: http://localhost:11434
+  model: llama3.2:3b
+
+gemini:
+  api_key: your-api-key-here
+  model: gemini-flash-lite-latest
 ```
 
 **Customization:**
-- Change `ollama_url` if running Ollama remotely
+- Change `ollama.url` if running Ollama remotely
 - Use a different `model` (e.g., `mistral`, `codellama`)
 - Modify `system_prompt` for different behavior
+
+## Command-Line Flags
+
+- `-p`, `--provider <name>` - Override provider for single command (ollama or gemini)
+- `--set-default-provider <name>` - Update default provider in config
 
 ## How It Works
 
@@ -119,9 +139,9 @@ The system prompt is engineered to output raw, executable commands without markd
 
 ## Requirements
 
-- **Go**: 1.19+ (for building from source)
-- **RAM**: ~8GB for llama3.2:3b model
-- **Disk**: ~2GB for model storage
+- **Go**: 1.25+ (for building from source)
+- **RAM**: ~8GB for llama3.2:3b model (if using Ollama)
+- **Disk**: ~2GB for model storage (if using Ollama)
 
 ## License
 
