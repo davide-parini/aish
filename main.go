@@ -3,6 +3,7 @@ package main
 import (
 	"aish/providers"
 	"bufio"
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
@@ -15,10 +16,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed config.default.yaml
+var defaultConfigYAML []byte
+
 // --- Configuration ---
 type Config struct {
 	DefaultProvider string       `yaml:"default_provider"`
 	SystemPrompt    string       `yaml:"system_prompt"`
+	ExplainPrompt   string       `yaml:"explain_prompt"`
 	Ollama          OllamaConfig `yaml:"ollama"`
 	Gemini          GeminiConfig `yaml:"gemini"`
 }
@@ -32,36 +37,6 @@ type GeminiConfig struct {
 	APIKey string `yaml:"api_key"`
 	Model  string `yaml:"model"`
 }
-
-// --- Prompt Engineering ---
-const advancedSystemPrompt = `You are a highly skilled macOS Zsh Command Generator.
-Your specific goal is to output raw, executable Zsh commands.
-
-RULES:
-1. OUTPUT FORMAT: Return ONLY the command text as a SINGLE LINE. Do NOT use markdown code blocks. Do NOT include quotes around the command. Do NOT add explanations. Do NOT output multiple lines or line breaks. Do NOT escape special characters unnecessarily - output clean, executable commands.
-2. ENVIRONMENT: The user is on macOS running Zsh. Use macOS-specific tools (pbcopy, open, etc.) and Zsh syntax.
-3. SAFETY: Prefer non-destructive flags where applicable.
-4. COMPLEXITY: If multiple steps are required, combine them with '&&' or ';' on a SINGLE LINE.
-5. CLARITY: If the user request is ambiguous, generate the most likely useful command.
-6. REFINEMENT: If the user provides additional constraints or modifications, BUILD ON the previous command by combining the new requirements with existing ones. Do NOT discard previous conditions.
-7. CORRECTNESS: Always verify command syntax is valid and will execute without errors. Test your commands mentally before outputting. Avoid unnecessary escaping like \( or \) unless truly required.
-
-Example User: "find huge files"
-Example Output: find . -type f -size +100M
-
-Example User: "update system"
-Example Output: softwareupdate -i -a
-
-Example User: "multiple steps"
-Example Output: cd /tmp && mkdir test && touch test/file.txt
-
-Example Refinement Flow:
-User: "find files edited in march"
-Assistant: find . -type f -newermt 2025-03-01 ! -newermt 2025-04-01
-User: "only big files"
-Assistant: find . -type f -newermt 2025-03-01 ! -newermt 2025-04-01 -size +100M
-
-NOW, generate the command for the following request.`
 
 func main() {
 	// Parse command-line flags
@@ -223,44 +198,37 @@ func readLine() string {
 }
 
 func loadConfig() Config {
-	// 1. Define Defaults
-	cfg := Config{
-		DefaultProvider: "ollama",
-		SystemPrompt:    advancedSystemPrompt,
-		Ollama: OllamaConfig{
-			URL:   "http://localhost:11434",
-			Model: "llama3.2:3b",
-		},
-		Gemini: GeminiConfig{
-			APIKey: "",
-			Model:  "gemini-flash-lite-latest",
-		},
-	}
-
-	// 2. Resolve Path
+	// 1. Resolve Path
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return cfg // Fallback to defaults if home dir fails
+		fmt.Println("❌ Failed to get home directory")
+		os.Exit(1)
 	}
 	dirPath := filepath.Join(home, ".config", "aish")
 	filePath := filepath.Join(dirPath, "config.yaml")
 
-	// 3. Create Config if it doesn't exist
+	// 2. Create Config if it doesn't exist
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		// Create directory if missing
 		os.MkdirAll(dirPath, 0755)
 
-		// Write defaults to file
-		data, _ := yaml.Marshal(cfg)
-		os.WriteFile(filePath, data, 0644)
+		// Write embedded default config to file
+		os.WriteFile(filePath, defaultConfigYAML, 0600)
 
 		fmt.Printf("⚙️  Created new config at %s\n", filePath)
-	} else {
-		// 4. Load existing config
-		data, err := os.ReadFile(filePath)
-		if err == nil {
-			yaml.Unmarshal(data, &cfg)
-		}
+	}
+
+	// 3. Load config from file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Printf("❌ Failed to read config: %v\n", err)
+		os.Exit(1)
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		fmt.Printf("❌ Failed to parse config: %v\n", err)
+		os.Exit(1)
 	}
 
 	return cfg
@@ -305,16 +273,17 @@ func setDefaultProviderInConfig(provider string) error {
 		return err
 	}
 
-	return os.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0600)
 }
 
 func explainCommand(provider providers.Provider, cfg Config, cmd string) (string, error) {
-	// Create a separate, temporary chat session for explanation
-	explainPrompt := fmt.Sprintf("Explain this shell command in detail, breaking down each part, flag, and parameter:\n\n%s\n\nProvide a clear, educational explanation in plain text. Do NOT use markdown formatting, code blocks, or special symbols. Just plain text.", cmd)
+	// Create a separate, isolated session for explanation
+	// Use the explain_prompt as system instruction (same pattern as command generation)
+	explainMessage := fmt.Sprintf("Explain this shell command:\n\n%s", cmd)
 
 	tempMessages := []providers.Message{
-		{Role: "user", Content: explainPrompt},
+		{Role: "user", Content: explainMessage},
 	}
 
-	return provider.SendMessage(tempMessages, cfg.SystemPrompt)
+	return provider.SendMessage(tempMessages, cfg.ExplainPrompt)
 }

@@ -44,10 +44,23 @@ cd aish
 The install script will:
 - Build the binary
 - Install to `~/.local/bin` (no sudo required)
-- Prompt for default LLM provider (ollama or gemini)
-- Optionally collect Gemini API key
-- Generate YAML config at `~/.config/aish/config.yaml`
 - Remind you to add `~/.local/bin` to PATH if needed
+
+On first run, aish will automatically create `~/.config/aish/config.yaml` with default settings (using local Ollama).
+
+### Setting up Gemini
+
+To use Google Gemini instead of local Ollama:
+
+1. Get an API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Run aish once to generate the config file
+3. Edit `~/.config/aish/config.yaml` and add your API key:
+   ```yaml
+   gemini:
+     api_key: your-api-key-here
+     model: gemini-flash-lite-latest
+   ```
+4. Set Gemini as default: `aish --set-default-provider gemini`
 
 ## Usage
 
@@ -109,6 +122,11 @@ system_prompt: |
   Your specific goal is to output raw, executable Zsh commands.
   ...
 
+explain_prompt: |
+  You are a helpful assistant that explains shell commands clearly and accurately.
+  Break down each part of the command, explaining flags, parameters, and their purpose.
+  ...
+
 ollama:
   url: http://localhost:11434
   model: llama3.2:3b
@@ -121,7 +139,8 @@ gemini:
 **Customization:**
 - Change `ollama.url` if running Ollama remotely
 - Use a different `model` (e.g., `mistral`, `codellama`)
-- Modify `system_prompt` for different behavior
+- Modify `system_prompt` for different command generation behavior
+- Modify `explain_prompt` for different explanation style
 
 ## Command-Line Flags
 
