@@ -48,7 +48,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser  # Use the official GoReleaser distribution
-          version: latest           # Use the latest version of GoReleaser
+          version: '~> v2'          # Lock to v2.x (latest stable v2 release)
           args: release --clean     # "--clean" removes old build artifacts first
         env:
           # GITHUB_TOKEN: Automatically provided by GitHub Actions
