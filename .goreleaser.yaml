@@ -68,17 +68,18 @@ changelog:
       - '^docs:'  # Exclude documentation-only changes
       - '^test:'  # Exclude test-only changes
 
-# Homebrew tap configuration
-# This automatically creates/updates a Homebrew formula in your tap repository
-homebrew:
-  - # The GitHub repository where the Homebrew formula will be stored
+# Homebrew Cask configuration
+# This automatically creates/updates a Homebrew Cask in your tap repository
+# Casks are the modern way to distribute pre-compiled binaries on Homebrew
+homebrew_casks:
+  - # The GitHub repository where the Homebrew Cask will be stored
     # This should be a separate repo named "homebrew-<name>"
     repository:
       owner: davide-parini        # Your GitHub username
       name: homebrew-aish         # Must start with "homebrew-"
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"  # GitHub token from secrets
     
-    # The name of the Homebrew formula (what users will "brew install")
+    # The name of the Homebrew Cask (what users will "brew install")
     name: aish
 
     # Project homepage - shown in "brew info aish"
@@ -90,16 +91,5 @@ homebrew:
     # Software license
     license: "MIT"
 
-    # Where to put the formula file in the tap repo
-    # Homebrew convention is to use "Formula" directory
-    directory: Formula
-
-    # Dependencies that Homebrew should install/check before installing aish
-    dependencies:
-      - name: zsh
-        type: optional  # Won't force install, but recommends it
-
-    # Custom installation script for Homebrew
-    # This runs when users do "brew install aish"
-    install: |
-      bin.install "aish"  # Installs the aish binary to /opt/homebrew/bin
+    # Casks must be in the "Casks" directory (default for homebrew_casks)
+    # No need to specify 'directory' - it defaults to "Casks"
