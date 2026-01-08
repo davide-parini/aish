@@ -2,7 +2,19 @@
 
 A fast, terminal-based tool that converts natural language descriptions into executable shell commands using LLMs.
 
-## Purpose
+## Table of Contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Contributing](#contributing)
+- [License](#license)
+- [How Homebrew Distribution Works](#how-homebrew-distribution-works)
+
+## Overview
 
 aish eliminates the need to remember complex shell syntax by letting you describe what you want to do in plain English. It generates the command, lets you review it, and gives you the option to execute, copy, or refine it.
 
@@ -14,12 +26,20 @@ aish eliminates the need to remember complex shell syntax by letting you describ
 - 📋 **Clipboard integration** - Copy commands with one keystroke
 - 🚀 **Single binary** - No dependencies, just run it
 
-## Prerequisites
+**Supported Platforms:**
+- aish is **macOS-only** and specifically optimized for Zsh on macOS
 
-**For Ollama (local):**
-- macOS running Zsh
+## Requirements
+
+**System Requirements:**
+- **macOS**: 10.13+ (any recent macOS version)
+- **Go**: 1.25+ (only if building from source)
+
+**For Ollama (local, default provider):**
 - [Ollama](https://ollama.ai) installed and running
 - The `llama3.2:3b` model
+- **RAM**: ~8GB for llama3.2:3b model
+- **Disk**: ~2GB for model storage
 
 ```bash
 # Install Ollama
@@ -30,7 +50,6 @@ ollama pull llama3.2:3b
 ```
 
 **For Gemini:**
-- macOS running Zsh
 - Google AI API key ([get one here](https://aistudio.google.com/app/apikey))
 
 ## Installation
@@ -40,7 +59,12 @@ ollama pull llama3.2:3b
 ```bash
 brew tap davide-parini/aish
 brew install aish
+brew upgrade aish  # Update to latest version
 ```
+
+Homebrew downloads the pre-compiled binary (no Go required), verifies checksums, and installs to:
+- **Apple Silicon**: `/opt/homebrew/bin/aish`
+- **Intel Macs**: `/usr/local/bin/aish`
 
 ### From Source
 
@@ -52,16 +76,43 @@ cd aish
 
 The install script will:
 - Build the binary
-- Install to `~/.local/bin` (no sudo required)
+- Install to `~/.local/bin/aish` (no sudo required)
 - Remind you to add `~/.local/bin` to PATH if needed
+
+### First Run
 
 On first run, aish will automatically create `~/.config/aish/config.yaml` with default settings configured to use local Ollama (the default provider).
 
-**Installation Details**:
-- **Homebrew path**: `/opt/homebrew/bin/aish` (Apple Silicon) or `/usr/local/bin/aish` (Intel)
-- **Manual install path**: `~/.local/bin/aish`
-- **Config path**: `~/.config/aish/config.yaml` (created on first run)
-- **Default provider**: Ollama (local, no API key required)
+## Configuration
+
+Configuration is stored at `~/.config/aish/config.yaml`:
+
+```yaml
+default_provider: ollama
+system_prompt: |
+  You are a highly skilled macOS Zsh Command Generator.
+  Your specific goal is to output raw, executable Zsh commands.
+  ...
+
+explain_prompt: |
+  You are a helpful assistant that explains shell commands clearly and accurately.
+  Break down each part of the command, explaining flags, parameters, and their purpose.
+  ...
+
+ollama:
+  url: http://localhost:11434
+  model: llama3.2:3b
+
+gemini:
+  api_key: your-api-key-here
+  model: gemini-flash-lite-latest
+```
+
+**Customization:**
+- Change `ollama.url` if running Ollama remotely
+- Use a different `model` (e.g., `mistral`, `codellama`)
+- Modify `system_prompt` for different command generation behavior
+- Modify `explain_prompt` for different explanation style
 
 ### Setting up Gemini
 
@@ -79,6 +130,8 @@ To use Google Gemini instead of local Ollama:
 
 ## Usage
 
+### Basic Commands
+
 ```bash
 # Basic usage
 aish <your goal in natural language>
@@ -90,6 +143,11 @@ aish --provider ollama compress videos
 # Change default provider
 aish --set-default-provider gemini
 ```
+
+### Command-Line Flags
+
+- `-p`, `--provider <name>` - Override provider for single command (ollama or gemini)
+- `--set-default-provider <name>` - Update default provider in config
 
 ### Interactive Mode
 
@@ -126,46 +184,6 @@ The AI combines your refinement with the previous command, maintaining context a
 
 Press **[3]** for a detailed breakdown:
 
-## Configuration
-
-Configuration is stored at `~/.config/aish/config.yaml`:
-
-```yaml
-default_provider: ollama
-system_prompt: |
-  You are a highly skilled macOS Zsh Command Generator.
-  Your specific goal is to output raw, executable Zsh commands.
-  ...
-
-explain_prompt: |
-  You are a helpful assistant that explains shell commands clearly and accurately.
-  Break down each part of the command, explaining flags, parameters, and their purpose.
-  ...
-
-ollama:
-  url: http://localhost:11434
-  model: llama3.2:3b
-
-gemini:
-  api_key: your-api-key-here
-  model: gemini-flash-lite-latest
-```
-
-**Customization:**
-- Change `ollama.url` if running Ollama remotely
-- Use a different `model` (e.g., `mistral`, `codellama`)
-- Modify `system_prompt` for different command generation behavior
-- Modify `explain_prompt` for different explanation style
-
-## Supported Platforms
-
-aish is **macOS-only** and specifically optimized for Zsh on macOS.
-
-## Command-Line Flags
-
-- `-p`, `--provider <name>` - Override provider for single command (ollama or gemini)
-- `--set-default-provider <name>` - Update default provider in config
-
 ## How It Works
 
 1. **Input**: You describe what you want in natural language
@@ -175,20 +193,13 @@ aish is **macOS-only** and specifically optimized for Zsh on macOS.
 
 The system prompt is engineered to output raw, executable Zsh commands without markdown formatting or explanations, ensuring compatibility with direct shell execution on macOS.
 
-## Requirements
+## Contributing
 
-### For Using (Homebrew Installation)
+Contributions welcome! Feel free to open issues or submit pull requests.
 
-- **macOS**: 10.13+ (any recent macOS version)
-- **RAM**: ~8GB for llama3.2:3b model (if using Ollama)
-- **Disk**: ~2GB for model storage (if using Ollama)
+## License
 
-### For Building from Source
-
-- **Go**: 1.25+ 
-- **macOS** running Zsh
-- **RAM**: ~8GB for llama3.2:3b model (if using Ollama)
-- **Disk**: ~2GB for model storage (if using Ollama)
+MIT
 
 ## How Homebrew Distribution Works
 
@@ -220,23 +231,3 @@ This project uses [GoReleaser](https://goreleaser.com) to automate the entire re
    - Calculates SHA256 checksums for verification
    - Updates version numbers and download URLs
    - Commits and pushes changes
-
-### For End Users
-
-Once published, users install with:
-
-```bash
-brew tap davide-parini/aish
-brew install aish
-brew upgrade aish  # Update to latest version
-```
-
-Homebrew downloads the pre-compiled binary (no Go required), verifies checksums, and installs to `/opt/homebrew/bin` (Intel Macs) or `/usr/local/bin`.
-
-## License
-
-MIT
-
-## Contributing
-
-Contributions welcome! Feel free to open issues or submit pull requests.
