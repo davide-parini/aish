@@ -35,6 +35,15 @@ ollama pull llama3.2:3b
 
 ## Installation
 
+### Via Homebrew (Recommended)
+
+```bash
+brew tap davide-parini/aish
+brew install aish
+```
+
+### From Source
+
 ```bash
 git clone https://github.com/davide-parini/aish
 cd aish
@@ -46,7 +55,13 @@ The install script will:
 - Install to `~/.local/bin` (no sudo required)
 - Remind you to add `~/.local/bin` to PATH if needed
 
-On first run, aish will automatically create `~/.config/aish/config.yaml` with default settings (using local Ollama).
+On first run, aish will automatically create `~/.config/aish/config.yaml` with default settings configured to use local Ollama (the default provider).
+
+**Installation Details**:
+- **Homebrew path**: `/opt/homebrew/bin/aish` (Apple Silicon) or `/usr/local/bin/aish` (Intel)
+- **Manual install path**: `~/.local/bin/aish`
+- **Config path**: `~/.config/aish/config.yaml` (created on first run)
+- **Default provider**: Ollama (local, no API key required)
 
 ### Setting up Gemini
 
@@ -142,6 +157,10 @@ gemini:
 - Modify `system_prompt` for different command generation behavior
 - Modify `explain_prompt` for different explanation style
 
+## Supported Platforms
+
+aish is **macOS-only** and specifically optimized for Zsh on macOS.
+
 ## Command-Line Flags
 
 - `-p`, `--provider <name>` - Override provider for single command (ollama or gemini)
@@ -150,17 +169,69 @@ gemini:
 ## How It Works
 
 1. **Input**: You describe what you want in natural language
-2. **Generation**: aish sends your request to Ollama with a specialized prompt
-3. **Review**: The generated command is displayed for your approval
-4. **Action**: Execute, copy, or refine based on your needs
+2. **Generation**: aish sends your request to the configured LLM provider (Ollama or Gemini) with a specialized macOS/Zsh-optimized prompt
+3. **Review**: The generated shell command is displayed for your approval before execution
+4. **Action**: You can execute, copy, refine, or explain the command
 
-The system prompt is engineered to output raw, executable commands without markdown formatting or explanations, ensuring compatibility with direct execution.
+The system prompt is engineered to output raw, executable Zsh commands without markdown formatting or explanations, ensuring compatibility with direct shell execution on macOS.
 
 ## Requirements
 
-- **Go**: 1.25+ (for building from source)
+### For Using (Homebrew Installation)
+
+- **macOS**: 10.13+ (any recent macOS version)
 - **RAM**: ~8GB for llama3.2:3b model (if using Ollama)
 - **Disk**: ~2GB for model storage (if using Ollama)
+
+### For Building from Source
+
+- **Go**: 1.25+ 
+- **macOS** running Zsh
+- **RAM**: ~8GB for llama3.2:3b model (if using Ollama)
+- **Disk**: ~2GB for model storage (if using Ollama)
+
+## How Homebrew Distribution Works
+
+This project uses [GoReleaser](https://goreleaser.com) to automate the entire release and Homebrew distribution process.
+
+### The Release Process
+
+1. **Create and Push a Version Tag**:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **GitHub Actions Trigger**: The tag push automatically triggers the [release workflow](.github/workflows/release.yml)
+
+3. **Cross-Compilation**: GoReleaser compiles `aish` for both macOS architectures:
+   - macOS (Intel): `darwin/amd64`
+   - macOS (Apple Silicon): `darwin/arm64`
+
+4. **Binary Packaging**: Each binary is packaged into a `.tar.gz` archive with a clear identifier like `aish_1.0.0_Darwin_arm64.tar.gz`
+
+5. **GitHub Release**: GoReleaser creates a GitHub Release with:
+   - 2 compiled binaries (Intel + Apple Silicon)
+   - `checksums.txt` file for integrity verification
+   - Auto-generated changelog from git commits
+
+6. **Homebrew Formula Update**: GoReleaser automatically:
+   - Creates or updates `Formula/aish.rb` in your `homebrew-aish` repository
+   - Calculates SHA256 checksums for verification
+   - Updates version numbers and download URLs
+   - Commits and pushes changes
+
+### For End Users
+
+Once published, users install with:
+
+```bash
+brew tap davide-parini/aish
+brew install aish
+brew upgrade aish  # Update to latest version
+```
+
+Homebrew downloads the pre-compiled binary (no Go required), verifies checksums, and installs to `/opt/homebrew/bin` (Intel Macs) or `/usr/local/bin`.
 
 ## License
 

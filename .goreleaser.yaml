@@ -1,0 +1,107 @@
+# GoReleaser configuration file
+# This automates building, packaging, and distributing your Go application
+# Documentation: https://goreleaser.com
+
+version: 2
+
+# Hooks to run before the build process starts
+before:
+  hooks:
+    # Ensures go.mod and go.sum are up-to-date before building
+    # This prevents build failures due to missing dependencies
+    - go mod tidy
+
+# Build configuration - defines how your binaries are compiled
+builds:
+  - env:
+      # CGO_ENABLED=0 creates a statically linked binary
+      # This means the binary has no external dependencies and will run anywhere
+      - CGO_ENABLED=0
+    
+    # Target operating systems to build for
+    # Only macOS (darwin) since the software uses macOS-specific syscalls,
+    # clipboard integration (pbcopy), and assumes Zsh shell
+    goos:
+      - darwin  # macOS only
+    
+    # Target CPU architectures
+    goarch:
+      - amd64  # Intel/AMD 64-bit (Intel Macs, most PCs)
+      - arm64  # ARM 64-bit (Apple Silicon Macs, newer servers)
+    
+    # Linker flags to optimize the binary
+    ldflags:
+      # -s: strip debug information (reduces binary size)
+      # -w: strip DWARF symbol table (further reduces size)
+      - -s -w
+
+# Archive configuration - how binaries are packaged for distribution
+archives:
+  - format: tar.gz  # Standard compression format for Unix-like systems
+    
+    # Template for archive names
+    # Example output: aish_1.0.0_Darwin_arm64.tar.gz
+    # This makes it clear which architecture the binary is for
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+# Checksum file generation
+# Creates a file with SHA256 hashes of all release artifacts
+# Users can verify their download wasn't corrupted or tampered with
+checksum:
+  name_template: 'checksums.txt'
+
+# Snapshot configuration for test builds (without a git tag)
+# Useful for testing the release process before creating an actual release
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# Changelog generation - creates release notes from git commits
+changelog:
+  sort: asc  # Sort commits in ascending order (oldest to newest)
+  
+  # Filter out commits that shouldn't appear in the changelog
+  filters:
+    exclude:
+      - '^docs:'  # Exclude documentation-only changes
+      - '^test:'  # Exclude test-only changes
+
+# Homebrew tap configuration
+# This automatically creates/updates a Homebrew formula in your tap repository
+brews:
+  - # The GitHub repository where the Homebrew formula will be stored
+    # This should be a separate repo named "homebrew-<name>"
+    repository:
+      owner: davide-parini        # Your GitHub username
+      name: homebrew-aish         # Must start with "homebrew-"
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"  # GitHub token from secrets
+    
+    # The name of the Homebrew formula (what users will "brew install")
+    name: aish
+
+    # Project homepage - shown in "brew info aish"
+    homepage: "https://github.com/davide-parini/aish"
+
+    # Short description - shown in search results and "brew info"
+    description: "AI Shell Helper - Convert natural language to shell commands"
+
+    # Software license
+    license: "MIT"
+
+    # Where to put the formula file in the tap repo
+    # Homebrew convention is to use "Formula" directory
+    directory: Formula
+
+    # Dependencies that Homebrew should install/check before installing aish
+    dependencies:
+      - name: zsh
+        type: optional  # Won't force install, but recommends it
+
+    # Custom installation script for Homebrew
+    # This runs when users do "brew install aish"
+    install: |
+      bin.install "aish"  # Installs the aish binary to /opt/homebrew/bin
