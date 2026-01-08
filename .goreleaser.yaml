@@ -37,9 +37,7 @@ builds:
 
 # Archive configuration - how binaries are packaged for distribution
 archives:
-  - format: tar.gz  # Standard compression format for Unix-like systems
-    
-    # Template for archive names
+  - # Template for archive names
     # Example output: aish_1.0.0_Darwin_arm64.tar.gz
     # This makes it clear which architecture the binary is for
     name_template: >-
@@ -72,7 +70,7 @@ changelog:
 
 # Homebrew tap configuration
 # This automatically creates/updates a Homebrew formula in your tap repository
-brews:
+homebrew:
   - # The GitHub repository where the Homebrew formula will be stored
     # This should be a separate repo named "homebrew-<name>"
     repository:
